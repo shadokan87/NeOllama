@@ -1,7 +1,10 @@
 import axios from 'axios';
-const { spawn } = require('child_process');
-const express = require('express');
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import express from 'express';
 const app = express();
+
+type childType = ChildProcessWithoutNullStreams;
+type childCallback<T = {}> = (child: childType) => T;
 
 app.use(express.json());
 
@@ -48,31 +51,48 @@ const buildCommand = (payload) => {
 interface job {
   id: number,
   isRunning: boolean,
+  child: childType | undefined,
+  callback: childCallback,
   command: string
 }
 
-class PromptScheduler {
-  jobs: job[] = [];
-  id = 0;
- constructor() {
+namespace ollama {
+  class PromptScheduler {
+    jobs: job[] = [];
+    id = 0;
+    constructor() {
 
- }
+    }
 
- jobsCount() {
-  return this.jobs.length;
- }
+    jobsCount() {
+      return this.jobs.length;
+    }
 
- getJobById(id: job['id']) {
-  return this.jobs.find(job => job.id == id)
- }
+    getJobById(id: job['id']) {
+      return this.jobs.find(job => job.id == id)
+    }
 
- getJobs() {
-  return this.jobs;
- }
+    getJobs() {
+      return this.jobs;
+    }
 
- addJob(command: job['command']) {
-  this.jobs = [...this.jobs, {id: this.id++, command: command, isRunning: false}]
- }
+    addJob(command: job['command'], callback: childCallback) {
+      const newJob = { id: this.id++, command: command, isRunning: false, callback, child: undefined };
+      this.jobs = [...this.jobs, newJob];
+      return newJob;
+    }
+
+    startJob(id: job['id']) {
+      let job = this.getJobById(id);
+      if (!job) {
+        // Handle error
+        return;
+      }
+      const child = spawn(job.command, { shell: true });
+      job.child = child;
+      job.callback(child);
+    }
+  }
 }
 
 app.post('/prompt', async (req, res) => {
@@ -102,7 +122,7 @@ app.post('/prompt', async (req, res) => {
       console.log(`${chunk}`);
     } else {
       if (chunk.length != 6) {
-      console.error(`Received error chunk ${chunk.length}: ${chunk}`);
+        console.error(`Received error chunk ${chunk.length}: ${chunk}`);
       }
     }
   });
