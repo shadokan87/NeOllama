@@ -48,17 +48,31 @@ const buildCommand = (payload) => {
   return `echo "${escapeBacktick(payload.prompt)}" | ollama run ${payload.model}`;
 }
 
-interface job {
-  id: number,
-  isRunning: boolean,
-  child: childType | undefined,
-  callback: childCallback,
-  command: string
-}
-
 namespace ollama {
-  class PromptScheduler {
-    jobs: job[] = [];
+  export class Job {
+    id: number;
+    isRunning: boolean;
+    child: childType | undefined;
+    callback: childCallback;
+    command: string;
+
+    constructor(id: number, command: string, callback: childCallback) {
+      this.id = id;
+      this.command = command;
+      this.callback = callback;
+      this.isRunning = false;
+      this.child = undefined;
+    }
+
+    start() {
+      const child = spawn(this.command, { shell: true });
+      this.child = child;
+      this.callback(child);
+    }
+  }
+
+  export class PromptScheduler {
+    jobs: Job[] = [];
     id = 0;
     constructor() {
 
@@ -68,7 +82,7 @@ namespace ollama {
       return this.jobs.length;
     }
 
-    getJobById(id: job['id']) {
+    getJobById(id: Job['id']) {
       return this.jobs.find(job => job.id == id)
     }
 
@@ -76,24 +90,24 @@ namespace ollama {
       return this.jobs;
     }
 
-    addJob(command: job['command'], callback: childCallback) {
-      const newJob = { id: this.id++, command: command, isRunning: false, callback, child: undefined };
+    addJob(command: Job['command'], callback: childCallback) {
+      const newJob = new Job(this.id++, command, callback);
       this.jobs = [...this.jobs, newJob];
       return newJob;
     }
 
-    startJob(id: job['id']) {
+    startJob(id: Job['id']) {
       let job = this.getJobById(id);
       if (!job) {
         // Handle error
         return;
       }
-      const child = spawn(job.command, { shell: true });
-      job.child = child;
-      job.callback(child);
+      job.start();
     }
   }
 }
+
+const promptScheduler = new ollama.PromptScheduler();
 
 app.post('/prompt', async (req, res) => {
   const data: prompt = req.body;
@@ -106,30 +120,32 @@ app.post('/prompt', async (req, res) => {
   console.log(`[DATA] ${JSON.stringify(data)}`);
   console.log(`[PAYLOAD]`, payload);
 
-  const child = spawn(command, { shell: true });
+  const job = a
 
-  child.stdout.on('data', (chunk) => {
-    console.log(`${chunk}`);
-  });
+  // const child = spawn(command, { shell: true });
 
-  function isAsciiSpinner(chunk: string): boolean {
-    const asciiSpinnerStates = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    return asciiSpinnerStates.some(state => chunk.includes(state));
-  }
+  // child.stdout.on('data', (chunk) => {
+  //   console.log(`${chunk}`);
+  // });
 
-  child.stderr.on('data', (chunk) => {
-    if (isAsciiSpinner(chunk)) {
-      console.log(`${chunk}`);
-    } else {
-      if (chunk.length != 6) {
-        console.error(`Received error chunk ${chunk.length}: ${chunk}`);
-      }
-    }
-  });
+  // function isAsciiSpinner(chunk: string): boolean {
+  //   const asciiSpinnerStates = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  //   return asciiSpinnerStates.some(state => chunk.includes(state));
+  // }
 
-  child.on('close', (code) => {
-    console.log(`Command exited with code ${code}`);
-  });
+  // child.stderr.on('data', (chunk) => {
+  //   if (isAsciiSpinner(chunk)) {
+  //     console.log(`${chunk}`);
+  //   } else {
+  //     if (chunk.length != 6) {
+  //       console.error(`Received error chunk ${chunk.length}: ${chunk}`);
+  //     }
+  //   }
+  // });
+
+  // child.on('close', (code) => {
+  //   console.log(`Command exited with code ${code}`);
+  // });
 
   res.send('Ok');
 });
