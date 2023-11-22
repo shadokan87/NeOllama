@@ -1,7 +1,7 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 
 export type childType = ChildProcessWithoutNullStreams;
-export type childCallback<T = {}> = (child: childType) => T;
+export type childCallback<T = {}> = (job: Job) => T;
 
 export class Job {
     id: number;
@@ -22,7 +22,7 @@ export class Job {
         console.log("here", this.command);
         const child = spawn(this.command, { shell: true });
         this.child = child;
-        this.callback(child);
+        this.callback(this);
     }
 }
 

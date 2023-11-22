@@ -1,6 +1,30 @@
 -- This file can be loaded by calling `lua require('plugins')` from your init.vim
 -- Only required if you have packer configured as `opt`
 print("Hello neollama")
+-- local socket = require("socket")
+-- local client = socket.connect("localhost", 3000)
+-- if client then
+--     print("Connected to the server")
+--     while true do
+--         local readable, _, error = socket.select({client}, nil, 0)
+--         if error then
+--             print("Failed to select from server: ", error)
+--             break
+--         end
+--         if #readable > 0 then
+--             local response, err = client:receive('*l')
+--             if not response then
+--                 print("Failed to receive from server: ", err)
+--                 break
+--             else
+--                 print("Received from server: ", response)
+--             end
+--         end
+--     end
+-- else
+--     print("Failed to connect to the server")
+-- end
+
 function getSelectedText()
     local _, csrow, cscol, _ = unpack(vim.fn.getpos("'<"))
     local _, cerow, cecol, _ = unpack(vim.fn.getpos("'>"))

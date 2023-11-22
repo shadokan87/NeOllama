@@ -3,6 +3,7 @@ import { ollama } from './ollama';
 import express from 'express';
 import { codeSnippet, escapeBacktick, isAsciiSpinner } from './ollama/prompt/utils';
 import { ollamaPrompt } from './ollama/prompt/types';
+import fs from 'fs';
 const app = express();
 
 app.use(express.json());
@@ -53,37 +54,6 @@ app.post("/test/jobstdin", async (req, res) => {
   res.send("ok");
 });
 
-app.post("/test", async (req, res) => {
-  const { command } = req.body;
-  const job = promptScheduler.addJob(command, (child) => {
-    child.stdout.on('data', (chunk) => {
-      console.log(`${chunk}`);
-    });
-
-    child.stderr.on('data', (chunk) => {
-      if (isAsciiSpinner(chunk)) {
-        console.log(`${chunk}`);
-      } else {
-        if (chunk.length != 6) {
-          console.error(`Received error chunk ${chunk.length}: ${chunk}`);
-        }
-      }
-    });
-
-    child.on('error', (error) => {
-      console.error(`Failed to start subprocess: ${error}`);
-    });
-
-    child.on('close', (code) => {
-      console.log(`Job closed with exit code ${code}`);
-    });
-    return 'ok';
-  });
-  console.log(`job id ${job.id}`);
-  job.start();
-  res.send("ok");
-});
-
 // To test this endpoint with curl, use the following command:
 // curl -X POST -H "Content-Type: application/json" -d '{"model": "<your_model>", "prompt": "<your_prompt>"}' http://localhost:<your_port>/prompt
 
@@ -94,7 +64,18 @@ const _log = (marker: string, ...args) => {
 function handlePrompt(payload: ollamaPrompt) {
   const command = buildCommand(payload);
   _log("CMD", command);
-   const job = promptScheduler.addJob(command, (child) => {
+  const job = promptScheduler.addJob(command, async (_job) => {
+    const { child, id } = _job;
+    if (!child)
+      return '';
+    let fileHandle: fs.promises.FileHandle | undefined = undefined;
+    try {
+    fileHandle = await fs.promises.open(`./responses/response-${id}.txt`, 'a');
+    _log("OK_HANDLE", fileHandle);
+    } catch(e) {
+    _log("ERROR_HANDLE", fileHandle);
+    }
+    _log('HANDLE', fileHandle);
     child.stdout.on('data', (chunk) => {
       console.log(`${chunk}`);
     });
@@ -119,7 +100,7 @@ function handlePrompt(payload: ollamaPrompt) {
     return true;
   });
   console.log(`job id ${job.id}`);
-  job.start(); 
+  job.start();
 }
 
 app.post('/prompt', async (req, res) => {
@@ -139,6 +120,13 @@ app.post('/prompt', async (req, res) => {
   res.send('Ok');
 });
 
+const io = require('socket.io')(3000);
+io.on('connection', (socket) => {
+  for (let i = 0; i < 10; i++) {
+    socket.emit("message", "hi");
+  }
+  console.log('a user connected');
+});
 
 app.listen(3000, () => {
   console.log('Server is running on port 3000');
